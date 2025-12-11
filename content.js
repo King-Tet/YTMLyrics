@@ -327,7 +327,7 @@ function init() {
             const video = document.querySelector('video');
             if (video && !video.hasAttribute('data-lyric-listener')) {
                 console.log("[YTM Lyric Fixer] Attached Time Listener to Video");
-                video.addEventListener('timeupdate', () => highlightLyrics(video.currentTime));
+                video.addEventListener('timeupdate', () => highlightLyrics(video.currentTime+1));
                 video.setAttribute('data-lyric-listener', 'true');
             }
         }, 1000);
