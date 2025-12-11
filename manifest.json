@@ -1,13 +1,10 @@
 {
   "manifest_version": 3,
   "name": "YTM Ultimate Lyrics",
-  "version": "2.3",
+  "version": "2.4",
   "permissions": [
     "scripting",
-    "storage",
-    "tabCapture",
-    "offscreen",
-    "activeTab" 
+    "storage"
   ],
   "host_permissions": [
     "https://music.youtube.com/*",
@@ -22,16 +19,16 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://music.youtube.com/*"],
-      "js": ["content.js"],
-      "css": ["styles.css"],
+      "matches": [
+        "https://music.youtube.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ],
       "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["offscreen.html"],
-      "matches": ["<all_urls>"]
     }
   ]
 }

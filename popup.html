@@ -1,28 +1,45 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <style>
-        body { width: 200px; padding: 10px; background: #222; color: #fff; font-family: sans-serif; }
-        h3 { margin-top: 0; font-size: 14px; text-align: center; color: #aaa; }
-        button {
-            width: 100%;
-            padding: 10px;
-            background: #cc0000;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.2s;
+        body {
+            width: 220px;
+            padding: 15px;
+            background: #222;
+            color: #fff;
+            font-family: 'Segoe UI', sans-serif;
+            text-align: center;
         }
-        button:hover { background: #ff0000; }
-        .status { margin-top: 10px; font-size: 11px; text-align: center; color: #888; }
+
+        h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #fff;
+        }
+
+        p {
+            font-size: 13px;
+            color: #aaa;
+            margin: 0;
+        }
+
+        .icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
+
 <body>
-    <h3>YTM Lyrics Control</h3>
-    <button id="btn-start">⚡ Start Visualizer</button>
-    <div class="status" id="status">Click to sync audio</div>
-    <script src="popup.js"></script>
+    <div class="icon">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="#3ea6ff">
+            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+        </svg>
+    </div>
+    <h3>YTM Lyrics</h3>
+    <p>Extension is active.</p>
+    <p style="margin-top:8px; font-size:11px; color:#666;">Play a song on YouTube Music to see lyrics.</p>
 </body>
+
 </html>

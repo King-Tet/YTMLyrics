@@ -12,7 +12,7 @@
     right: 20px;
     width: 350px;
     height: 400px;
-    
+
     background: var(--lyric-bg);
     color: var(--lyric-text);
     backdrop-filter: blur(10px);
@@ -21,11 +21,12 @@
     z-index: 9999;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-    
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+
     /* Native CSS Resizing */
     resize: both;
-    overflow: hidden; /* Hide overflow for the container, scroll the list instead */
+    overflow: hidden;
+    /* Hide overflow for the container, scroll the list instead */
     min-width: 200px;
     min-height: 150px;
 }
@@ -33,7 +34,7 @@
 /* The Draggable Header */
 #ytm-header {
     height: 30px;
-    background: rgba(255,255,255,0.05);
+    background: rgba(255, 255, 255, 0.05);
     cursor: grab;
     display: flex;
     justify-content: space-between;
@@ -42,6 +43,7 @@
     user-select: none;
     flex-shrink: 0;
 }
+
 #ytm-header:active {
     cursor: grabbing;
 }
@@ -55,10 +57,14 @@
 /* Settings Button (Cog) */
 #ytm-settings-btn {
     cursor: pointer;
-    font-size: 16px;
+    font-size: 0;
+    /* Remove potential text spacing */
     opacity: 0.7;
     transition: transform 0.3s;
+    display: flex;
+    align-items: center;
 }
+
 #ytm-settings-btn:hover {
     opacity: 1;
     transform: rotate(90deg);
@@ -72,8 +78,15 @@
     font-family: 'Roboto', sans-serif;
     font-size: var(--lyric-font-size);
 }
-#lyric-list::-webkit-scrollbar { width: 8px; }
-#lyric-list::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+
+#lyric-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+#lyric-list::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
 
 /* Active Line */
 .lyric-line {
@@ -82,6 +95,7 @@
     transition: all 0.2s ease;
     cursor: pointer;
 }
+
 .lyric-line.active {
     opacity: 1;
     font-weight: bold;
@@ -93,17 +107,20 @@
 /* Settings Panel (Overlay inside the box) */
 #ytm-settings-panel {
     position: absolute;
-    top: 30px; /* Below header */
+    top: 30px;
+    /* Below header */
     left: 0;
     right: 0;
     bottom: 0;
     background: #1a1a1a;
     padding: 20px;
-    display: none; /* Hidden by default */
+    display: none;
+    /* Hidden by default */
     flex-direction: column;
     gap: 15px;
     z-index: 10;
 }
+
 #ytm-settings-panel.show {
     display: flex;
 }
@@ -114,6 +131,7 @@
     align-items: center;
     font-size: 14px;
 }
+
 .setting-row input[type="color"] {
     border: none;
     width: 30px;
@@ -121,9 +139,11 @@
     cursor: pointer;
     background: none;
 }
+
 .setting-row input[type="range"] {
     width: 100px;
 }
+
 .save-btn {
     margin-top: auto;
     background: #3ea6ff;
@@ -135,35 +155,26 @@
     font-weight: bold;
 }
 
-/* 1. VISUALIZER CANVAS */
-#ytm-visualizer-canvas {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 100%; /* Full background */
-    z-index: 0; /* Behind the text */
-    pointer-events: none; /* Let clicks pass through to lyrics */
-    border-radius: 12px;
-    opacity: 0.6; /* Subtle blend */
-}
 
-/* Ensure text sits ON TOP of visualizer */
 #lyric-list {
     position: relative;
-    z-index: 1; 
+    z-index: 1;
 }
 
 /* 2. VAGUE TIMESTAMPS */
 .lyric-time {
     display: inline-block;
-    width: 50px;           /* Fixed width to align lyrics perfectly */
-    font-size: 0.75em;     /* Slightly smaller than text */
+    width: 50px;
+    /* Fixed width to align lyrics perfectly */
+    font-size: 0.75em;
+    /* Slightly smaller than text */
     color: #fff;
-    opacity: 0.2;          /* Very faint by default (the "vague" look) */
+    opacity: 0.2;
+    /* Very faint by default (the "vague" look) */
     margin-right: 15px;
     text-align: right;
-    font-family: 'Courier New', monospace; /* Monospace for alignment */
+    font-family: 'Courier New', monospace;
+    /* Monospace for alignment */
     transition: all 0.3s ease;
     user-select: none;
     vertical-align: middle;
@@ -177,7 +188,9 @@
 /* The Active Line Timestamp - Clear and Visible */
 .lyric-line.active .lyric-time {
     opacity: 0.9;
-    color: var(--lyric-active); /* Matches your theme color */
+    color: var(--lyric-active);
+    /* Matches your theme color */
     font-weight: bold;
-    transform: scale(1.1);      /* Slight pop */
+    transform: scale(1.1);
+    /* Slight pop */
 }

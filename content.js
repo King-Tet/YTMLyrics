@@ -1,107 +1,137 @@
 // ============================================================================
-//  YTM ULTIMATE LYRICS - CONTENT SCRIPT
+//  YTM ULTIMATE LYRICS - CONTENT SCRIPT (v3.0 - Robust Fix)
 // ============================================================================
 
 // --- GLOBAL STATE ---
 let lyrics = [];
 let activeLineIndex = -1;
-let lastTitle = ""; // Track current song
+let currentSongSignature = ""; // Combination of Title + Artist to detect changes
 
-// Visualizer State
-let audioData = new Array(64).fill(0); // Frequency data from offscreen
-let visualizerCtx = null;
-let visualizerCanvas = null;
-let visualizerPreset = "bars"; // "bars", "wave", "shockwave"
+
 
 // Default Settings
 const defaultSettings = {
-    top: "auto",
-    left: "auto",
-    bottom: "120px",
-    right: "20px",
-    width: "350px",
-    height: "400px",
-    activeColor: "#3ea6ff",
-    fontSize: "16",
-    bgOpacity: "0.85",
-    showVisualizer: true
-};
+    top: "auto", left: "auto", bottom: "120px", right: "20px",
+    width: "350px", height: "400px",
+    activeColor: "#3ea6ff", fontSize: "16", bgOpacity: "0.85",
 
+};
 let currentSettings = { ...defaultSettings };
 
 // ============================================================================
-//  1. INITIALIZATION & LIFECYCLE
+//  1. INITIALIZATION
 // ============================================================================
 
 function init() {
     console.log("[YTM Lyric Fixer] Initializing...");
 
-    // A. Listen for Audio Data from Background/Offscreen
-    chrome.runtime.onMessage.addListener((msg) => {
-        if (msg.type === 'VISUALIZER_UPDATE') {
-            audioData = msg.data;
-        }
-    });
+
 
     // B. Load Settings & Create UI
     loadSettings(() => {
-        validatePosition(); // Rescue box if off-screen
+        validatePosition();
         createOverlay();
 
-        // C. Start Song Watcher (Media Session API)
-        setInterval(checkSongChange, 1000);
+        // C. Start The loops
+        // Check for song changes every 1 second
+        setInterval(checkForSongChange, 1000);
 
-        // D. Start Time Watcher (Video Element)
-        setInterval(attachTimeListener, 1000);
+        // Sync lyrics to video time every 0.2 seconds (faster = smoother)
+        setInterval(syncLyrics, 200);
+
+
     });
 }
 
-// Watcher: Check if song changed using Media Session Metadata
-function checkSongChange() {
-    if ('mediaSession' in navigator && navigator.mediaSession.metadata) {
-        const md = navigator.mediaSession.metadata;
-        const title = md.title;
-        const artist = md.artist;
-        const video = document.querySelector('video');
+// ============================================================================
+//  2. HYBRID SONG DETECTION (The Fix)
+// ============================================================================
 
-        // Only fetch if title changed AND we have a valid video duration
-        if (title && title !== lastTitle && video && video.duration > 1) {
-            console.log(`[YTM Lyric Fixer] New Song Detected: ${title}`);
-            lastTitle = title;
-            fetchLyrics(title, artist, video.duration);
-        }
-    }
-}
-
-// Watcher: Ensure video has timeupdate listener
-function attachTimeListener() {
+function checkForSongChange() {
     const video = document.querySelector('video');
-    if (video && !video.hasAttribute('data-lyric-listener')) {
-        video.addEventListener('timeupdate', () => highlightLyrics(video.currentTime));
-        video.setAttribute('data-lyric-listener', 'true');
+    if (!video || video.duration < 1) return; // Wait for video to load
+
+    let title = "";
+    let artist = "";
+
+    // METHOD A: Try Media Session API (Best/Cleanest)
+    if ('mediaSession' in navigator && navigator.mediaSession.metadata) {
+        title = navigator.mediaSession.metadata.title;
+        artist = navigator.mediaSession.metadata.artist;
+    }
+
+    // METHOD B: DOM Scraping Fallback (If Method A fails)
+    if (!title) {
+        const titleEl = document.querySelector('.content-info-wrapper .title');
+        const artistEl = document.querySelector('.content-info-wrapper .subtitle'); // Class names vary, this is a common one
+        if (titleEl) title = titleEl.innerText;
+        if (artistEl) artist = artistEl.innerText;
+    }
+
+    // If we still have nothing, stop.
+    if (!title) return;
+
+    // Check if song changed
+    const signature = title + " - " + artist;
+    if (signature !== currentSongSignature) {
+        console.log(`[YTM Lyric Fixer] New Song: ${signature}`);
+        currentSongSignature = signature;
+
+        // Update UI immediately so you know it worked
+        updateStatus(`Detected: ${title}`);
+
+        fetchLyrics(title, artist, video.duration);
     }
 }
 
-// Rescue Protocol: Reset position if off-screen
-function validatePosition() {
-    const topVal = parseInt(currentSettings.top);
-    const leftVal = parseInt(currentSettings.left);
-    
-    // Check if stuck above top
-    if (!isNaN(topVal) && topVal < 0) currentSettings.top = "20px";
-    
-    // Check if stuck too far left
-    if (!isNaN(leftVal) && leftVal < 0) currentSettings.left = "20px";
-    
-    // Check if lost below screen
-    if (!isNaN(topVal) && topVal > window.innerHeight - 50) {
-        currentSettings.top = (window.innerHeight - 300) + "px";
-    }
+function syncLyrics() {
+    const video = document.querySelector('video');
+    if (video) highlightLyrics(video.currentTime);
 }
 
 // ============================================================================
-//  2. API & PARSING (LRCLIB)
+//  3. API FETCHING
 // ============================================================================
+
+async function fetchLyrics(title, artist, duration) {
+    updateStatus(`Searching: ${title}...`);
+
+    // Clean up artist name (remove "feat.", etc for better matching)
+    const cleanArtist = artist ? artist.split('•')[0].split('feat')[0].trim() : "";
+
+    const url = new URL("https://lrclib.net/api/get");
+    url.searchParams.append("track_name", title);
+    url.searchParams.append("artist_name", cleanArtist);
+    url.searchParams.append("duration", duration);
+
+    try {
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            updateStatus("Lyrics not found in DB");
+            clearLyrics();
+            return;
+        }
+
+        const data = await response.json();
+
+        if (data.syncedLyrics) {
+            lyrics = parseLRC(data.syncedLyrics);
+            renderLyrics();
+            updateStatus("Synced Lyrics");
+        } else if (data.plainLyrics) {
+            renderUnsynced(data.plainLyrics);
+            updateStatus("Unsynced Lyrics");
+        } else {
+            updateStatus("No lyrics found");
+            clearLyrics();
+        }
+    } catch (e) {
+        console.error(e);
+        updateStatus("Network/API Error");
+        clearLyrics();
+    }
+}
 
 function parseLRC(lrcString) {
     const lines = lrcString.split('\n');
@@ -117,44 +147,8 @@ function parseLRC(lrcString) {
     return result;
 }
 
-function formatTime(seconds) {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-async function fetchLyrics(title, artist, duration) {
-    updateStatus("Searching...");
-    const url = new URL("https://lrclib.net/api/get");
-    url.searchParams.append("track_name", title);
-    url.searchParams.append("artist_name", artist);
-    url.searchParams.append("duration", duration);
-
-    try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Not found");
-        const data = await response.json();
-        
-        if (data.syncedLyrics) {
-            lyrics = parseLRC(data.syncedLyrics);
-            renderLyrics();
-            updateStatus("Synced");
-        } else if (data.plainLyrics) {
-            updateStatus("Unsynced");
-            renderUnsynced(data.plainLyrics);
-        } else {
-            updateStatus("No lyrics");
-            clearLyrics();
-        }
-    } catch (e) {
-        console.warn("Lyrics not found or API error");
-        updateStatus("No lyrics");
-        clearLyrics();
-    }
-}
-
 // ============================================================================
-//  3. UI GENERATION
+//  4. UI & RENDERING
 // ============================================================================
 
 function createOverlay() {
@@ -162,52 +156,31 @@ function createOverlay() {
 
     const container = document.createElement('div');
     container.id = 'ytm-lyrics-container';
-    
-    // A. Visualizer Canvas
-    const canvas = document.createElement('canvas');
-    canvas.id = 'ytm-visualizer-canvas';
-    container.appendChild(canvas);
-    visualizerCanvas = canvas;
-    visualizerCtx = canvas.getContext('2d');
 
-    // B. Header (Draggable)
+
+
+    // Header
     const header = document.createElement('div');
     header.id = 'ytm-header';
-    header.innerHTML = `<span id="ytm-title-label">Lyric Fixer</span><span id="ytm-settings-btn">⚙️</span>`;
+    header.innerHTML = `<span id="ytm-title-label">Lyric Fixer</span><span id="ytm-settings-btn"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg></span>`;
 
-    // C. Settings Panel
+    // Settings Panel
     const settingsPanel = document.createElement('div');
     settingsPanel.id = 'ytm-settings-panel';
     settingsPanel.innerHTML = `
         <h3>Settings</h3>
-        
-        <div style="background:#222; padding:10px; border-radius:8px; margin-bottom:15px; text-align:center;">
-             <p style="margin:0; font-size:12px; color:#aaa;">To enable Visualizer:</p>
-             <p style="margin:5px 0 0 0; font-size:12px; color:#fff; font-weight:bold;">Click Extension Icon 🧩 -> Start</p>
-        </div>
-
         <div class="setting-row"><label>Color</label> <input type="color" id="set-color" value="${currentSettings.activeColor}"></div>
         <div class="setting-row"><label>Font Size</label> <input type="range" id="set-font" min="12" max="32" value="${currentSettings.fontSize}"></div>
         <div class="setting-row"><label>Opacity</label> <input type="range" id="set-opacity" min="0.1" max="1" step="0.1" value="${currentSettings.bgOpacity}"></div>
-        <div class="setting-row">
-            <label>Vis. Mode</label>
-            <select id="set-preset" style="background:#333; color:#fff; border:none; padding:5px; border-radius:4px;">
-                <option value="bars">Classic Bars</option>
-                <option value="wave">Waveform</option>
-                <option value="shockwave">Shockwave</option>
-            </select>
-        </div>
-        <div class="setting-row"><label>Show Vis.</label> <input type="checkbox" id="set-vis" ${currentSettings.showVisualizer ? 'checked' : ''}></div>
-        
         <button class="save-btn" id="save-settings">Done</button>
     `;
 
-    // D. Status & List
+    // Status Bar (Debugging Area)
     const status = document.createElement('div');
     status.id = 'lyric-status';
-    status.innerText = "Ready";
-    status.style.cssText = "padding: 5px 20px; font-size: 12px; color: #aaa; position:relative; z-index:2;";
-    
+    status.innerText = "Waiting for song...";
+    status.style.cssText = "padding: 5px 20px; font-size: 11px; color: #ffcc00; position:relative; z-index:2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;";
+
     const list = document.createElement('div');
     list.id = 'lyric-list';
 
@@ -217,173 +190,95 @@ function createOverlay() {
     container.appendChild(list);
     document.body.appendChild(container);
 
-    // E. Initialize Events & Styles
     applyStyles();
     setupDrag(container, header);
     setupSettingsEvents();
-    
-    // Start Animation Loop
-    requestAnimationFrame(renderVisualizer);
+}
+
+function renderLyrics() {
+    const list = document.getElementById('lyric-list');
+    list.innerHTML = '';
+    lyrics.forEach((line, index) => {
+        const row = document.createElement('div');
+        row.className = 'lyric-line';
+        row.dataset.index = index;
+
+        // Format time mm:ss
+        const m = Math.floor(line.time / 60);
+        const s = Math.floor(line.time % 60);
+        const timeStr = `${m}:${s.toString().padStart(2, '0')}`;
+
+        row.innerHTML = `<span class="lyric-time">${timeStr}</span><span>${line.text}</span>`;
+        row.onclick = () => { document.querySelector('video').currentTime = line.time; };
+        list.appendChild(row);
+    });
+}
+
+function renderUnsynced(text) {
+    document.getElementById('lyric-list').innerHTML = `<div style="white-space: pre-wrap; padding:10px;">${text}</div>`;
+}
+
+function updateStatus(msg) {
+    const el = document.getElementById('lyric-status');
+    if (el) el.innerText = msg;
+}
+
+function clearLyrics() {
+    lyrics = [];
+    document.getElementById('lyric-list').innerHTML = '<div style="padding:20px; opacity:0.5; font-style:italic;">No lyrics available.</div>';
+}
+
+function highlightLyrics(time) {
+    if (lyrics.length === 0) return;
+    let newIndex = -1;
+    for (let i = 0; i < lyrics.length; i++) {
+        if (time >= lyrics[i].time) newIndex = i;
+        else break;
+    }
+
+    if (newIndex !== activeLineIndex && newIndex !== -1) {
+        const lines = document.querySelectorAll('.lyric-line');
+        if (activeLineIndex !== -1 && lines[activeLineIndex]) lines[activeLineIndex].classList.remove('active');
+        if (lines[newIndex]) {
+            lines[newIndex].classList.add('active');
+            lines[newIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        activeLineIndex = newIndex;
+    }
 }
 
 // ============================================================================
-//  4. VISUALIZER ENGINE
-// ============================================================================
-
-function renderVisualizer() {
-    if (!visualizerCanvas || !visualizerCtx) return;
-    
-    // Auto-resize canvas to match container
-    const container = document.getElementById('ytm-lyrics-container');
-    if (!container) return; // Exit if UI closed
-
-    if (container.clientWidth !== visualizerCanvas.width || container.clientHeight !== visualizerCanvas.height) {
-        visualizerCanvas.width = container.clientWidth;
-        visualizerCanvas.height = container.clientHeight;
-    }
-
-    const w = visualizerCanvas.width;
-    const h = visualizerCanvas.height;
-    const ctx = visualizerCtx;
-
-    // Check playing state
-    const video = document.querySelector('video');
-    const isPlaying = video && !video.paused;
-
-    // Clear / Fade
-    ctx.clearRect(0, 0, w, h);
-    
-    if (currentSettings.showVisualizer && isPlaying) {
-        if (visualizerPreset === 'bars') drawBars(ctx, w, h);
-        else if (visualizerPreset === 'wave') drawWave(ctx, w, h);
-        else if (visualizerPreset === 'shockwave') drawShockwave(ctx, w, h);
-    }
-    
-    requestAnimationFrame(renderVisualizer);
-}
-
-function drawBars(ctx, w, h) {
-    const bars = 32; 
-    const barWidth = w / bars;
-    const step = Math.floor(audioData.length / bars);
-
-    for (let i = 0; i < bars; i++) {
-        // Average the frequency bin
-        let sum = 0;
-        for(let j=0; j<step; j++) sum += audioData[i*step + j] || 0;
-        const avg = sum / step;
-
-        const barHeight = (avg / 255) * h * 0.5;
-        
-        ctx.fillStyle = currentSettings.activeColor;
-        ctx.globalAlpha = 0.4;
-        ctx.fillRect(i * barWidth, h - barHeight, barWidth - 2, barHeight);
-    }
-    ctx.globalAlpha = 1.0;
-}
-
-function drawWave(ctx, w, h) {
-    ctx.beginPath();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = currentSettings.activeColor;
-    ctx.globalAlpha = 0.6;
-
-    const sliceWidth = w / audioData.length;
-    let x = 0;
-
-    for (let i = 0; i < audioData.length; i++) {
-        const v = audioData[i] / 128.0; 
-        const y = (v * h) / 4 + h/2; // Center
-
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-        x += sliceWidth;
-    }
-    ctx.stroke();
-    ctx.globalAlpha = 1.0;
-}
-
-function drawShockwave(ctx, w, h) {
-    const centerX = w / 2;
-    const centerY = h / 2;
-    // Bass is usually in the lower bins (0-4)
-    const bass = (audioData[0] + audioData[1] + audioData[2]) / 3;
-    const radius = 20 + (bass / 255) * 100;
-
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-    ctx.lineWidth = 4 + (bass/255) * 8;
-    ctx.strokeStyle = currentSettings.activeColor;
-    ctx.globalAlpha = (bass / 255) * 0.7; 
-    ctx.stroke();
-    ctx.globalAlpha = 1.0;
-}
-
-// ============================================================================
-//  5. EVENTS: DRAG & SETTINGS
+//  5. SETTINGS & DRAG
 // ============================================================================
 
 function setupDrag(element, handle) {
-    let isDragging = false;
-    let offsetX, offsetY;
-
+    let isDragging = false, offsetX, offsetY;
     handle.onmousedown = (e) => {
         isDragging = true;
         offsetX = e.clientX - element.getBoundingClientRect().left;
         offsetY = e.clientY - element.getBoundingClientRect().top;
-        element.style.bottom = 'auto';
-        element.style.right = 'auto';
+        element.style.bottom = 'auto'; element.style.right = 'auto';
         document.body.style.cursor = 'grabbing';
     };
-
     document.onmousemove = (e) => {
         if (!isDragging) return;
-        
         let newLeft = e.clientX - offsetX;
         let newTop = e.clientY - offsetY;
-
-        // BOUNDARY CHECK (Anti-Stuck)
         if (newTop < 0) newTop = 0;
-        const maxTop = window.innerHeight - 30;
-        if (newTop > maxTop) newTop = maxTop;
+        if (newTop > window.innerHeight - 30) newTop = window.innerHeight - 30;
         if (newLeft < 0) newLeft = 0;
         if (newLeft > window.innerWidth - 50) newLeft = window.innerWidth - 50;
-
         element.style.left = newLeft + 'px';
         element.style.top = newTop + 'px';
     };
-
-    document.onmouseup = () => {
-        if (isDragging) {
-            isDragging = false;
-            document.body.style.cursor = 'default';
-            saveSettings();
-        }
-    };
+    document.onmouseup = () => { if (isDragging) { isDragging = false; document.body.style.cursor = 'default'; saveSettings(); } };
 }
 
 function setupSettingsEvents() {
     const btn = document.getElementById('ytm-settings-btn');
     const panel = document.getElementById('ytm-settings-panel');
     const saveBtn = document.getElementById('save-settings');
-    const startVisBtn = document.getElementById('btn-start-vis');
-
-    // Toggle Panel
     btn.onclick = () => panel.classList.toggle('show');
-
-    // AUDIO CAPTURE HANDSHAKE
-    startVisBtn.onclick = () => {
-        try {
-            chrome.runtime.sendMessage({ type: 'START_VISUALIZER' });
-            startVisBtn.innerText = "Sync Active";
-            startVisBtn.style.background = "#2ba640"; 
-        } catch(e) {
-            console.error("Extension Context Invalid", e);
-            startVisBtn.innerText = "Error (Reload)";
-        }
-    };
-
-    // Live Config Updates
     document.getElementById('set-color').oninput = (e) => {
         currentSettings.activeColor = e.target.value;
         document.documentElement.style.setProperty('--lyric-active', e.target.value);
@@ -396,124 +291,47 @@ function setupSettingsEvents() {
         currentSettings.bgOpacity = e.target.value;
         document.documentElement.style.setProperty('--lyric-bg', `rgba(0, 0, 0, ${e.target.value})`);
     };
-    document.getElementById('set-vis').onchange = (e) => {
-        currentSettings.showVisualizer = e.target.checked;
-    };
-    document.getElementById('set-preset').onchange = (e) => {
-        visualizerPreset = e.target.value;
-    };
 
-    saveBtn.onclick = () => {
-        panel.classList.remove('show');
-        saveSettings();
-    };
+    saveBtn.onclick = () => { panel.classList.remove('show'); saveSettings(); };
 }
 
 function saveSettings() {
     const container = document.getElementById('ytm-lyrics-container');
     if (!container) return;
-    
     const rect = container.getBoundingClientRect();
     currentSettings.top = rect.top + "px";
     currentSettings.left = rect.left + "px";
     currentSettings.width = rect.width + "px";
     currentSettings.height = rect.height + "px";
-    
     chrome.storage.local.set({ 'ytmSettings': currentSettings });
 }
 
+function loadSettings(callback) {
+    chrome.storage.local.get(['ytmSettings'], (result) => {
+        if (result.ytmSettings) currentSettings = { ...defaultSettings, ...result.ytmSettings };
+        callback();
+    });
+}
 function applyStyles() {
     const container = document.getElementById('ytm-lyrics-container');
     if (!container) return;
-    
     container.style.top = currentSettings.top;
     container.style.left = currentSettings.left;
     container.style.width = currentSettings.width;
     container.style.height = currentSettings.height;
-    
     document.documentElement.style.setProperty('--lyric-active', currentSettings.activeColor);
     document.documentElement.style.setProperty('--lyric-font-size', currentSettings.fontSize + 'px');
     document.documentElement.style.setProperty('--lyric-bg', `rgba(0, 0, 0, ${currentSettings.bgOpacity})`);
 }
 
-// ============================================================================
-//  6. RENDER HELPERS
-// ============================================================================
-
-function highlightLyrics(time) {
-    if (lyrics.length === 0) return;
-    
-    let newIndex = -1;
-    // Find the last line where time >= line.time
-    for (let i = 0; i < lyrics.length; i++) {
-        if (time >= lyrics[i].time) newIndex = i;
-        else break;
-    }
-
-    if (newIndex !== activeLineIndex && newIndex !== -1) {
-        const lines = document.querySelectorAll('.lyric-line');
-        if (activeLineIndex !== -1 && lines[activeLineIndex]) {
-            lines[activeLineIndex].classList.remove('active');
-        }
-        if (lines[newIndex]) {
-            lines[newIndex].classList.add('active');
-            lines[newIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-        activeLineIndex = newIndex;
-    }
+function validatePosition() {
+    const topVal = parseInt(currentSettings.top);
+    const leftVal = parseInt(currentSettings.left);
+    if (!isNaN(topVal) && topVal < 0) currentSettings.top = "20px";
+    if (!isNaN(leftVal) && leftVal < 0) currentSettings.left = "20px";
+    if (!isNaN(topVal) && topVal > window.innerHeight - 50) currentSettings.top = (window.innerHeight - 300) + "px";
 }
 
-function renderLyrics() {
-    const list = document.getElementById('lyric-list');
-    list.innerHTML = '';
-    lyrics.forEach((line, index) => {
-        const row = document.createElement('div');
-        row.className = 'lyric-line';
-        row.dataset.index = index;
-        
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'lyric-time';
-        timeSpan.innerText = formatTime(line.time);
-        
-        const textSpan = document.createElement('span');
-        textSpan.innerText = line.text;
-
-        row.appendChild(timeSpan);
-        row.appendChild(textSpan);
-        row.onclick = () => { document.querySelector('video').currentTime = line.time; };
-        list.appendChild(row);
-    });
-}
-
-function renderUnsynced(text) {
-    document.getElementById('lyric-list').innerHTML = `<div style="white-space: pre-wrap;">${text}</div>`;
-}
-
-function updateStatus(msg) {
-    const el = document.getElementById('lyric-status');
-    if (el) el.innerText = msg;
-}
-
-function clearLyrics() {
-    lyrics = [];
-    document.getElementById('lyric-list').innerHTML = '';
-}
-
-function loadSettings(callback) {
-    chrome.storage.local.get(['ytmSettings'], (result) => {
-        if (result.ytmSettings) {
-            currentSettings = { ...defaultSettings, ...result.ytmSettings };
-        }
-        callback();
-    });
-}
-
-// ============================================================================
-//  STARTUP
-// ============================================================================
-
-if (document.readyState === "complete" || document.readyState === "interactive") {
-    init();
-} else {
-    window.addEventListener('DOMContentLoaded', init);
-}
+// START
+if (document.readyState === "complete" || document.readyState === "interactive") init();
+else window.addEventListener('DOMContentLoaded', init);
