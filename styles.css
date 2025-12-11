@@ -157,24 +157,27 @@
 /* 2. VAGUE TIMESTAMPS */
 .lyric-time {
     display: inline-block;
-    width: 45px;
-    font-size: 0.8em;
-    color: #888;
-    opacity: 0; /* Hidden by default */
+    width: 50px;           /* Fixed width to align lyrics perfectly */
+    font-size: 0.75em;     /* Slightly smaller than text */
+    color: #fff;
+    opacity: 0.2;          /* Very faint by default (the "vague" look) */
     margin-right: 15px;
     text-align: right;
-    font-family: monospace;
-    transition: opacity 0.3s ease;
+    font-family: 'Courier New', monospace; /* Monospace for alignment */
+    transition: all 0.3s ease;
     user-select: none;
+    vertical-align: middle;
 }
 
-/* Show timestamp on hover OR if it's the active line */
-.lyric-line:hover .lyric-time,
-.lyric-line.active .lyric-time {
+/* Hovering over a line reveals its specific time a bit more */
+.lyric-line:hover .lyric-time {
     opacity: 0.5;
 }
 
-/* Update Active Line to be more readable over visualizer */
-.lyric-line.active {
-    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+/* The Active Line Timestamp - Clear and Visible */
+.lyric-line.active .lyric-time {
+    opacity: 0.9;
+    color: var(--lyric-active); /* Matches your theme color */
+    font-weight: bold;
+    transform: scale(1.1);      /* Slight pop */
 }
