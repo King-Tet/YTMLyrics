@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
   "name": "YTM Ultimate Lyrics",
-  "version": "2.0",
+  "version": "2.1",
   "permissions": [
     "scripting",
     "storage",
-    "tabCapture",
+    "tabCapture", 
     "offscreen"
   ],
   "host_permissions": [

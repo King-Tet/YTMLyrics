@@ -1,34 +1,34 @@
 // background.js
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'START_VISUALIZER') {
-        setupOffscreenDocument(msg.streamId).then(() => {
-            sendResponse({ success: true });
-        });
-        return true; 
+        startCapture(sender.tab.id);
     }
 });
 
-let creating; // A global promise to avoid race conditions
-async function setupOffscreenDocument(path) {
-    // Check if offscreen doc already exists
+async function startCapture(tabId) {
+    // 1. Create the offscreen document if it doesn't exist
     const existingContexts = await chrome.runtime.getContexts({
         contextTypes: ['OFFSCREEN_DOCUMENT'],
     });
 
-    if (existingContexts.length > 0) {
-        return;
-    }
-
-    // Create it
-    if (creating) {
-        await creating;
-    } else {
-        creating = chrome.offscreen.createDocument({
+    if (existingContexts.length === 0) {
+        await chrome.offscreen.createDocument({
             url: 'offscreen.html',
             reasons: ['USER_MEDIA'],
-            justification: 'To analyze audio frequencies for a music visualizer',
+            justification: 'Visualizer audio analysis',
         });
-        await creating;
-        creating = null;
     }
+
+    // 2. Get the Stream ID (The "Key" to the audio)
+    // specific to the tab that requested it
+    const streamId = await chrome.tabCapture.getMediaStreamId({
+        targetTabId: tabId
+    });
+
+    // 3. Send the Key to the Offscreen Document
+    chrome.runtime.sendMessage({
+        type: 'INIT_AUDIO',
+        streamId: streamId,
+        tabId: tabId
+    });
 }
