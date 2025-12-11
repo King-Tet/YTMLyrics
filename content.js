@@ -3,7 +3,7 @@ let lyrics = [];
 let activeLineIndex = -1;
 let visualizerCtx = null;
 let visualizerCanvas = null;
-let isVisualizerOn = true; // Default ON
+let isVisualizerOn = true;
 
 const defaultSettings = {
     top: "auto", left: "auto", bottom: "120px", right: "20px",
@@ -29,7 +29,6 @@ function parseLRC(lrcString) {
     return result;
 }
 
-// Format seconds to mm:ss
 function formatTime(seconds) {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
@@ -38,7 +37,9 @@ function formatTime(seconds) {
 
 // --- 2. API ---
 async function fetchLyrics(title, artist, duration) {
+    console.log(`[YTM Lyric Fixer] Fetching: ${title} by ${artist} (${duration}s)`);
     updateStatus("Searching...");
+    
     const url = new URL("https://lrclib.net/api/get");
     url.searchParams.append("track_name", title);
     url.searchParams.append("artist_name", artist);
@@ -46,14 +47,23 @@ async function fetchLyrics(title, artist, duration) {
 
     try {
         const response = await fetch(url);
-        if (!response.ok) throw new Error("Not found");
+        
+        if (!response.ok) {
+            console.warn("[YTM Lyric Fixer] API returned 404 or error");
+            updateStatus("Not Found");
+            clearLyrics();
+            return;
+        }
+
         const data = await response.json();
         
         if (data.syncedLyrics) {
+            console.log("[YTM Lyric Fixer] Synced lyrics found!");
             lyrics = parseLRC(data.syncedLyrics);
             renderLyrics();
             updateStatus("Synced");
         } else if (data.plainLyrics) {
+            console.log("[YTM Lyric Fixer] Plain lyrics found.");
             updateStatus("Unsynced");
             renderUnsynced(data.plainLyrics);
         } else {
@@ -61,7 +71,8 @@ async function fetchLyrics(title, artist, duration) {
             clearLyrics();
         }
     } catch (e) {
-        updateStatus("No lyrics");
+        console.error("[YTM Lyric Fixer] Network Error:", e);
+        updateStatus("Error");
         clearLyrics();
     }
 }
@@ -78,7 +89,7 @@ function createOverlay() {
     header.id = 'ytm-header';
     header.innerHTML = `<span id="ytm-title-label">Lyric Fixer</span><span id="ytm-settings-btn">⚙️</span>`;
 
-    // Visualizer Canvas (Background)
+    // Visualizer Canvas
     const canvas = document.createElement('canvas');
     canvas.id = 'ytm-visualizer-canvas';
     container.appendChild(canvas);
@@ -90,25 +101,16 @@ function createOverlay() {
     settingsPanel.id = 'ytm-settings-panel';
     settingsPanel.innerHTML = `
         <h3>Settings</h3>
-        <div class="setting-row">
-            <label>Active Color</label> <input type="color" id="set-color" value="${currentSettings.activeColor}">
-        </div>
-        <div class="setting-row">
-            <label>Font Size</label> <input type="range" id="set-font" min="12" max="32" value="${currentSettings.fontSize}">
-        </div>
-        <div class="setting-row">
-            <label>Opacity</label> <input type="range" id="set-opacity" min="0.1" max="1" step="0.1" value="${currentSettings.bgOpacity}">
-        </div>
-        <div class="setting-row">
-            <label>Visualizer</label> <input type="checkbox" id="set-vis" ${currentSettings.showVisualizer ? 'checked' : ''}>
-        </div>
+        <div class="setting-row"><label>Active Color</label> <input type="color" id="set-color" value="${currentSettings.activeColor}"></div>
+        <div class="setting-row"><label>Font Size</label> <input type="range" id="set-font" min="12" max="32" value="${currentSettings.fontSize}"></div>
+        <div class="setting-row"><label>Opacity</label> <input type="range" id="set-opacity" min="0.1" max="1" step="0.1" value="${currentSettings.bgOpacity}"></div>
+        <div class="setting-row"><label>Visualizer</label> <input type="checkbox" id="set-vis" ${currentSettings.showVisualizer ? 'checked' : ''}></div>
         <button class="save-btn" id="save-settings">Done</button>
     `;
 
-    // List & Status
     const status = document.createElement('div');
     status.id = 'lyric-status';
-    status.innerText = "Ready";
+    status.innerText = "Waiting for song...";
     status.style.cssText = "padding: 5px 20px; font-size: 12px; color: #aaa; position:relative; z-index:2;";
     
     const list = document.createElement('div');
@@ -123,17 +125,17 @@ function createOverlay() {
     applyStyles();
     setupDrag(container, header);
     setupSettingsEvents();
-    
-    // Start Visualizer Loop
     requestAnimationFrame(renderVisualizer);
 }
 
-// --- 4. VISUALIZER ENGINE ---
+// --- 4. VISUALIZER ---
 function renderVisualizer() {
     if (!visualizerCanvas || !visualizerCtx) return;
     
-    // Handle Canvas Resize
     const container = document.getElementById('ytm-lyrics-container');
+    // Safety check if container was removed
+    if (!container) return; 
+    
     if (container.clientWidth !== visualizerCanvas.width || container.clientHeight !== visualizerCanvas.height) {
         visualizerCanvas.width = container.clientWidth;
         visualizerCanvas.height = container.clientHeight;
@@ -143,41 +145,27 @@ function renderVisualizer() {
     const height = visualizerCanvas.height;
     const ctx = visualizerCtx;
 
-    // Clear
     ctx.clearRect(0, 0, width, height);
-
-    // Only draw if ON and Video is Playing
     const video = document.querySelector('video');
     const isPlaying = video && !video.paused;
 
     if (currentSettings.showVisualizer && isPlaying) {
         ctx.fillStyle = currentSettings.activeColor;
-        
-        // Create 20 bars
         const bars = 20;
         const barWidth = width / bars;
         
         for (let i = 0; i < bars; i++) {
-            // Generate a random height based on time to make it look smooth (Perlin noise-ish)
             const time = Date.now() / 150; 
             const noise = Math.sin(time + i * 0.5) * Math.cos(time * 0.9 + i * 0.2);
-            // Map -1..1 to 0..1 then scale
             const barHeight = Math.abs(noise) * (height * 0.4); 
-            
-            // Draw bars at the bottom
-            const x = i * barWidth;
-            const y = height - barHeight;
-            
-            // Add some transparency to the bars
             ctx.globalAlpha = 0.2;
-            ctx.fillRect(x, y, barWidth - 2, barHeight);
+            ctx.fillRect(i * barWidth, height - barHeight, barWidth - 2, barHeight);
         }
     }
-    
     requestAnimationFrame(renderVisualizer);
 }
 
-// --- 5. RENDER LOGIC (Updated for Timestamps) ---
+// --- 5. RENDER LOGIC ---
 function renderLyrics() {
     const list = document.getElementById('lyric-list');
     list.innerHTML = '';
@@ -186,18 +174,15 @@ function renderLyrics() {
         row.className = 'lyric-line';
         row.dataset.index = index;
         
-        // 1. Timestamp Span
         const timeSpan = document.createElement('span');
         timeSpan.className = 'lyric-time';
         timeSpan.innerText = formatTime(line.time);
         
-        // 2. Text Span
         const textSpan = document.createElement('span');
         textSpan.innerText = line.text;
 
         row.appendChild(timeSpan);
         row.appendChild(textSpan);
-        
         row.onclick = () => { document.querySelector('video').currentTime = line.time; };
         list.appendChild(row);
     });
@@ -221,7 +206,7 @@ function highlightLyrics(time) {
     }
 }
 
-// --- 6. SETTINGS & EVENTS ---
+// --- 6. SETTINGS & DRAG ---
 function setupSettingsEvents() {
     const btn = document.getElementById('ytm-settings-btn');
     const panel = document.getElementById('ytm-settings-panel');
@@ -229,7 +214,6 @@ function setupSettingsEvents() {
 
     btn.onclick = () => panel.classList.toggle('show');
 
-    // Inputs
     document.getElementById('set-color').oninput = (e) => {
         currentSettings.activeColor = e.target.value;
         document.documentElement.style.setProperty('--lyric-active', e.target.value);
@@ -245,16 +229,12 @@ function setupSettingsEvents() {
     document.getElementById('set-vis').onchange = (e) => {
         currentSettings.showVisualizer = e.target.checked;
     };
-
     saveBtn.onclick = () => {
         panel.classList.remove('show');
         saveSettings();
     };
 }
 
-// ... (Rest of init/drag/save logic remains similar to previous step) ...
-
-// --- RE-INSERT STANDARD INIT/SAVE LOGIC HERE TO COMPLETE THE FILE ---
 function saveSettings() {
     const container = document.getElementById('ytm-lyrics-container');
     const rect = container.getBoundingClientRect();
@@ -262,12 +242,12 @@ function saveSettings() {
     currentSettings.left = rect.left + "px";
     currentSettings.width = rect.width + "px";
     currentSettings.height = rect.height + "px";
-
     chrome.storage.local.set({ 'ytmSettings': currentSettings });
 }
 
 function applyStyles() {
     const container = document.getElementById('ytm-lyrics-container');
+    if (!container) return;
     container.style.top = currentSettings.top;
     container.style.left = currentSettings.left;
     container.style.width = currentSettings.width;
@@ -294,6 +274,17 @@ function setupDrag(element, handle) {
     document.onmouseup = () => { if(isDragging) { isDragging = false; saveSettings(); }};
 }
 
+function updateStatus(msg) {
+    const el = document.getElementById('lyric-status');
+    if (el) el.innerText = msg;
+}
+function clearLyrics() {
+    lyrics = [];
+    document.getElementById('lyric-list').innerHTML = '';
+}
+function renderUnsynced(text) {
+    document.getElementById('lyric-list').innerHTML = `<div style="white-space: pre-wrap;">${text}</div>`;
+}
 function loadSettings(callback) {
     chrome.storage.local.get(['ytmSettings'], (result) => {
         if (result.ytmSettings) currentSettings = { ...defaultSettings, ...result.ytmSettings };
@@ -301,31 +292,51 @@ function loadSettings(callback) {
     });
 }
 
+// --- 7. MAIN (The Fix) ---
 function init() {
+    console.log("[YTM Lyric Fixer] Initializing...");
     loadSettings(() => {
         createOverlay();
+
+        // 1. WATCHER: Use Media Session API (The Robust Fix)
+        let lastTitle = "";
+        
+        setInterval(() => {
+            // Check if media session is available
+            if ('mediaSession' in navigator && navigator.mediaSession.metadata) {
+                const md = navigator.mediaSession.metadata;
+                const title = md.title;
+                const artist = md.artist;
+                
+                const video = document.querySelector('video');
+                
+                // Only fetch if title changed AND we have a valid video duration
+                if (title && title !== lastTitle && video && video.duration > 1) {
+                    console.log("[YTM Lyric Fixer] Detected Song Change:", title);
+                    lastTitle = title;
+                    fetchLyrics(title, artist, video.duration);
+                }
+            } else {
+                // Fallback debug
+                // console.log("MediaSession not ready yet...");
+            }
+        }, 1000);
+
+        // 2. TIME SYNC
         setInterval(() => {
             const video = document.querySelector('video');
             if (video && !video.hasAttribute('data-lyric-listener')) {
+                console.log("[YTM Lyric Fixer] Attached Time Listener to Video");
                 video.addEventListener('timeupdate', () => highlightLyrics(video.currentTime));
                 video.setAttribute('data-lyric-listener', 'true');
             }
         }, 1000);
-        let lastTitle = "";
-        setInterval(() => {
-            const titleEl = document.querySelector('ytmusic-player-bar .title');
-            const artistEl = document.querySelector('ytmusic-player-bar .byline');
-            const video = document.querySelector('video');
-            if (titleEl && artistEl && video && !isNaN(video.duration)) {
-                const title = titleEl.innerText;
-                let artist = artistEl.innerText.split('•')[0].trim();
-                if (title !== lastTitle && video.duration > 0) {
-                    lastTitle = title;
-                    fetchLyrics(title, artist, video.duration);
-                }
-            }
-        }, 2000);
     });
 }
 
-init();
+// Wait for page load
+if (document.readyState === "complete" || document.readyState === "interactive") {
+    init();
+} else {
+    window.addEventListener('DOMContentLoaded', init);
+}
