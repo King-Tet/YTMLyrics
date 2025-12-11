@@ -1,13 +1,15 @@
-// offscreen.js
+// Notify background that we are alive and listening
+chrome.runtime.sendMessage({ type: 'OFFSCREEN_LOADED' });
+
 chrome.runtime.onMessage.addListener(async (msg) => {
     if (msg.type === 'INIT_AUDIO') {
+        console.log("[Offscreen] Received Stream ID. Starting capture...");
         startAudioAnalysis(msg.streamId, msg.tabId);
     }
 });
 
 async function startAudioAnalysis(streamId, targetTabId) {
     try {
-        // 1. Redeem the Stream ID for a Real Media Stream
         const stream = await navigator.mediaDevices.getUserMedia({
             audio: {
                 mandatory: {
@@ -18,43 +20,42 @@ async function startAudioAnalysis(streamId, targetTabId) {
             video: false
         });
 
-        // 2. Setup Audio Context
         const audioCtx = new AudioContext();
         const source = audioCtx.createMediaStreamSource(stream);
         const analyser = audioCtx.createAnalyser();
         
-        analyser.fftSize = 128; // Resolution of bars (64 data points)
-        analyser.smoothingTimeConstant = 0.8; // Make it less jittery
+        analyser.fftSize = 128;
+        analyser.smoothingTimeConstant = 0.5;
         
         source.connect(analyser);
-        source.connect(audioCtx.destination); // IMPORTANT: Keeps audio playing in speakers
+        // CRITICAL: Connect to speakers so you can still hear the music
+        source.connect(audioCtx.destination); 
 
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-        // 3. The Broadcast Loop
         function report() {
-            if (!stream.active) return; // Stop if stream dies
+            if (!stream.active) {
+                console.log("[Offscreen] Stream inactive.");
+                return;
+            }
             
             analyser.getByteFrequencyData(dataArray);
             
-            // Send data back to the specific tab that requested it
+            // Send raw data back to the content script
             chrome.tabs.sendMessage(targetTabId, {
                 type: 'VISUALIZER_UPDATE',
                 data: Array.from(dataArray)
-            }).catch(err => {
-                // If tab closed, stop loop
-                if(err.message.includes("receiving end does not exist")) {
-                     stream.getTracks().forEach(t => t.stop());
-                }
+            }).catch(e => {
+                // Consuming tab is likely closed/refreshed
             });
 
             requestAnimationFrame(report);
         }
 
         report();
-        console.log("Audio analysis started!");
+        console.log("[Offscreen] Audio Loop Started!");
 
     } catch (e) {
-        console.error("Offscreen Audio Error:", e);
+        console.error("[Offscreen] getUserMedia Failed:", e);
     }
 }

@@ -182,10 +182,8 @@ function createOverlay() {
         <h3>Settings</h3>
         
         <div style="background:#222; padding:10px; border-radius:8px; margin-bottom:15px; text-align:center;">
-             <p style="margin:0 0 5px 0; font-size:11px; color:#aaa; text-transform:uppercase;">Audio Sync</p>
-             <button id="btn-start-vis" style="background:#cc0000; color:#fff; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:12px;">
-                Enable Visualizer
-             </button>
+             <p style="margin:0; font-size:12px; color:#aaa;">To enable Visualizer:</p>
+             <p style="margin:5px 0 0 0; font-size:12px; color:#fff; font-weight:bold;">Click Extension Icon 🧩 -> Start</p>
         </div>
 
         <div class="setting-row"><label>Color</label> <input type="color" id="set-color" value="${currentSettings.activeColor}"></div>

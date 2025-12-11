@@ -1,34 +1,61 @@
-// background.js
+let activeStreamId = null;
+let activeTabId = null;
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    // 1. Listen for START from Popup
     if (msg.type === 'START_VISUALIZER') {
-        startCapture(sender.tab.id);
+        // The popup sends the tabId manually
+        const targetTabId = msg.tabId || sender.tab.id;
+        console.log("[Background] Received START for Tab:", targetTabId);
+        
+        setupOffscreenAndCapture(targetTabId);
+        sendResponse({ received: true }); // Keep popup happy
+        return true;
+    }
+    
+    // 2. Listen for READY from Offscreen
+    if (msg.type === 'OFFSCREEN_LOADED') {
+        console.log("[Background] Offscreen Ready. Handing off ID...");
+        if (activeStreamId && activeTabId) {
+            chrome.runtime.sendMessage({
+                type: 'INIT_AUDIO',
+                streamId: activeStreamId,
+                tabId: activeTabId
+            });
+        }
     }
 });
 
-async function startCapture(tabId) {
-    // 1. Create the offscreen document if it doesn't exist
-    const existingContexts = await chrome.runtime.getContexts({
-        contextTypes: ['OFFSCREEN_DOCUMENT'],
-    });
-
-    if (existingContexts.length === 0) {
-        await chrome.offscreen.createDocument({
-            url: 'offscreen.html',
-            reasons: ['USER_MEDIA'],
-            justification: 'Visualizer audio analysis',
+async function setupOffscreenAndCapture(tabId) {
+    try {
+        // THIS CALL must happen immediately after the Popup button click
+        const streamId = await chrome.tabCapture.getMediaStreamId({
+            targetTabId: tabId
         });
+        
+        activeStreamId = streamId;
+        activeTabId = tabId;
+        console.log("[Background] Stream ID Generated:", streamId);
+
+        // Check/Create Offscreen
+        const existingContexts = await chrome.runtime.getContexts({
+            contextTypes: ['OFFSCREEN_DOCUMENT'],
+        });
+
+        if (existingContexts.length > 0) {
+            chrome.runtime.sendMessage({
+                type: 'INIT_AUDIO',
+                streamId: streamId,
+                tabId: tabId
+            });
+        } else {
+            await chrome.offscreen.createDocument({
+                url: 'offscreen.html',
+                reasons: ['USER_MEDIA'],
+                justification: 'Visualizer audio analysis',
+            });
+        }
+    } catch (e) {
+        console.error("[Background] Capture Failed:", e);
     }
-
-    // 2. Get the Stream ID (The "Key" to the audio)
-    // specific to the tab that requested it
-    const streamId = await chrome.tabCapture.getMediaStreamId({
-        targetTabId: tabId
-    });
-
-    // 3. Send the Key to the Offscreen Document
-    chrome.runtime.sendMessage({
-        type: 'INIT_AUDIO',
-        streamId: streamId,
-        tabId: tabId
-    });
 }
