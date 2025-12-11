@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "YTM Synced Lyrics",
-  "version": "1.0",
-  "description": "Adds synced lyrics from LRCLIB to YouTube Music.",
+  "version": "1.1",
   "permissions": [
-    "scripting"
+    "scripting",
+    "storage" 
   ],
   "host_permissions": [
     "https://music.youtube.com/*",
@@ -17,10 +17,5 @@
       "css": ["styles.css"],
       "run_at": "document_idle"
     }
-  ],
-  "icons": {
-    "16": "icon.png", 
-    "48": "icon.png",
-    "128": "icon.png"
-  }
+  ]
 }
