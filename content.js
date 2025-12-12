@@ -14,7 +14,8 @@ const MAX_RETRIES = 3;
 const defaultSettings = {
     top: "auto", left: "auto", bottom: "120px", right: "20px",
     width: "360px", height: "500px",
-    activeColor: "#3ea6ff", fontSize: "16", bgOpacity: "0.85"
+    activeColor: "#3ea6ff", fontSize: "16", bgOpacity: "0.85",
+    align: "left"
 };
 let currentSettings = { ...defaultSettings };
 
@@ -224,40 +225,130 @@ function createOverlay() {
     container.innerHTML = `
         <div id="ytm-header">
             <span id="ytm-title-label">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 8px;">
                     <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
                 </svg>
                 Lyrics
             </span>
             <div class="header-controls">
-                <div class="icon-btn" id="ytm-minimize-btn" title="Minimize">
-                    <svg viewBox="0 0 24 24"><path d="M6 19h12v2H6z"/></svg>
+                <!-- Settings Toggle -->
+                <div class="icon-btn" id="ytm-settings-toggle" title="Settings">
+                    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L5.16 9.17c-.11.2-.06.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
                 </div>
             </div>
         </div>
+
         <div id="lyric-status">Waiting...</div>
+
+        <!-- Main Lyrics List -->
         <div id="lyric-list"></div>
+
+        <!-- In-App Settings Overlay -->
+        <div id="ytm-settings-overlay">
+
+            <div class="settings-group">
+                <span class="settings-label">Appearance</span>
+
+                <div class="settings-row">
+                    <span>Font Size</span>
+                    <input type="range" class="ytm-slider" id="set-font" min="12" max="32" value="${currentSettings.fontSize}">
+                </div>
+
+                <div class="settings-row">
+                    <span>Opacity</span>
+                    <input type="range" class="ytm-slider" id="set-opacity" min="0.1" max="1" step="0.05" value="${currentSettings.bgOpacity}">
+                </div>
+
+                <div class="settings-row">
+                    <span>Color</span>
+                    <input type="color" id="set-color" value="${currentSettings.activeColor}" style="border:none; width:30px; height:30px; background:none; cursor:pointer;">
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <span class="settings-label">Alignment</span>
+                <div class="toggle-group">
+                    <button class="toggle-btn ${currentSettings.align === 'left' ? 'active' : ''}" data-align="left" title="Left">
+                        <svg viewBox="0 0 24 24"><path d="M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z"/></svg>
+                    </button>
+                    <button class="toggle-btn ${currentSettings.align === 'center' ? 'active' : ''}" data-align="center" title="Center">
+                        <svg viewBox="0 0 24 24"><path d="M7 15v2h10v-2H7zm-4 6h18v-2H3v2zm0-8h18v-2H3v2zm4-6v2h10V7H7zM3 3v2h18V3H3z"/></svg>
+                    </button>
+                    <button class="toggle-btn ${currentSettings.align === 'right' ? 'active' : ''}" data-align="right" title="Right">
+                        <svg viewBox="0 0 24 24"><path d="M3 21h18v-2H3v2zm6-4h12v-2H9v2zm-6-4h18v-2H3v2zm6-4h12V7H9v2zM3 3v2h18V3H3z"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="credits-box">
+                <div class="credits-title">YTM Ultimate Lyrics</div>
+                <div>v3.1</div>
+                <div style="margin-top:4px; opacity:0.7;">Made with ❤️</div>
+            </div>
+        </div>
     `;
 
     document.body.appendChild(container);
 
-    // Bind Events
+    // Bind Header Events
     const header = container.querySelector('#ytm-header');
     setupDrag(container, header);
 
-    // Minimize logic (simple toggle for now, user didn't ask for full minimize, but it's good UX)
-    const list = container.querySelector('#lyric-list');
-    const minBtn = container.querySelector('#ytm-minimize-btn');
-    minBtn.onclick = () => {
-        if (container.style.height === '48px') {
-            container.style.height = currentSettings.height;
-            minBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 19h12v2H6z"/></svg>'; // Dash
+    // Toggle Settings
+    const settingsBtn = container.querySelector('#ytm-settings-toggle');
+    const settingsPanel = container.querySelector('#ytm-settings-overlay');
+
+    settingsBtn.onclick = () => {
+        const isVisible = settingsPanel.classList.contains('visible');
+        if (isVisible) {
+            settingsPanel.classList.remove('visible');
+            settingsBtn.style.opacity = "0.7";
         } else {
-            currentSettings.height = container.style.height; // Save before minimize
-            container.style.height = '48px'; // Header height
-            minBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"/></svg>'; // Up caret
+            settingsPanel.classList.add('visible');
+            settingsBtn.style.opacity = "1";
         }
     };
+
+    // Bind Setting Inputs
+    const setFont = container.querySelector('#set-font');
+    setFont.oninput = (e) => {
+        currentSettings.fontSize = e.target.value;
+        saveSettings();
+        applyStyles();
+    };
+
+    const setOpacity = container.querySelector('#set-opacity');
+    setOpacity.oninput = (e) => {
+        currentSettings.bgOpacity = e.target.value;
+        saveSettings();
+        applyStyles();
+    };
+
+    const setColor = container.querySelector('#set-color');
+    setColor.oninput = (e) => {
+        currentSettings.activeColor = e.target.value;
+        saveSettings();
+        applyStyles();
+
+        // Immediate active line update
+        const active = document.querySelector('.lyric-line.active');
+        if (active) active.style.color = currentSettings.activeColor;
+    };
+
+    // Alignment Toggles
+    const alignBtns = container.querySelectorAll('.toggle-btn');
+    alignBtns.forEach(btn => {
+        btn.onclick = () => {
+            // Reset UI
+            alignBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Apply
+            currentSettings.align = btn.dataset.align;
+            saveSettings();
+            applyStyles();
+        };
+    });
 }
 
 function renderLyricsList() {
@@ -316,11 +407,30 @@ function applyStyles() {
     document.documentElement.style.setProperty('--lyric-font-size', currentSettings.fontSize + "px");
     document.documentElement.style.setProperty('--lyric-active', currentSettings.activeColor);
 
-    // Handle Opacity on the BG variable
-    // We used --lyric-bg as pure RGB before, now we constructed it
-    // Reconstruct the RGBA
     const alpha = currentSettings.bgOpacity;
     document.documentElement.style.setProperty('--lyric-bg', `rgba(20, 20, 20, ${alpha})`);
+
+    // Handle Alignment
+    const list = document.getElementById('lyric-list');
+    if (list) list.style.textAlign = currentSettings.align || 'left';
+
+    // Update Slider inputs if styles came from storage/external
+    const fontInput = container.querySelector('#set-font');
+    if (fontInput) fontInput.value = currentSettings.fontSize;
+
+    const opacityInput = container.querySelector('#set-opacity');
+    if (opacityInput) opacityInput.value = currentSettings.bgOpacity;
+
+    const colorInput = container.querySelector('#set-color');
+    if (colorInput) colorInput.value = currentSettings.activeColor;
+
+    const alignBtns = container.querySelectorAll('.toggle-btn');
+    if (alignBtns.length > 0) {
+        alignBtns.forEach(btn => {
+            if (btn.dataset.align === (currentSettings.align || 'left')) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+    }
 }
 
 // ============================================================================
