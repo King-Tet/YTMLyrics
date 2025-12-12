@@ -1,6 +1,2 @@
-
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'LOG') {
-        console.log("[Content Script]", msg.msg);
-    }
-});
+// Background service worker
+// Currently empty for production, but kept for future expansion.

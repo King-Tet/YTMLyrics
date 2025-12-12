@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube Music Lyrics",
-  "version": "2.4",
+  "version": "3.2",
   "permissions": [
     "scripting",
     "storage"

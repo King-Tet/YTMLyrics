@@ -1,6 +1,4 @@
-// ============================================================================
-//  YTM ULTIMATE LYRICS - CONTENT SCRIPT (v3.1 - Native Overhaul)
-// ============================================================================
+// YTM Ultimate Lyrics - Content Script (v3.1)
 
 // --- GLOBAL STATE ---
 let lyrics = [];
@@ -19,12 +17,10 @@ const defaultSettings = {
 };
 let currentSettings = { ...defaultSettings };
 
-// ============================================================================
-//  1. INITIALIZATION & LIFECYCLE
-// ============================================================================
+// 1. Initialization
 
 function init() {
-    console.log("[YTM Lyrics] Initializing...");
+
 
     // Load Settings First
     loadSettings(() => {
@@ -52,7 +48,7 @@ function init() {
 // Listen for messages from Popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'RELOAD_LYRICS') {
-        console.log("[YTM Lyrics] Manual Reload Triggered");
+
         currentSongSignature = ""; // Force re-detection
         checkForSongChange();
     }
@@ -71,9 +67,7 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     }
 });
 
-// ============================================================================
-//  2. SONG DETECTION (ROBUST)
-// ============================================================================
+// 2. Song Detection
 
 function checkForSongChange() {
     const video = document.querySelector('video');
@@ -95,7 +89,7 @@ function checkForSongChange() {
 
     const signature = `${title} - ${artist}`;
     if (signature !== currentSongSignature) {
-        console.log(`[YTM Lyrics] New Song Detected: ${signature}`);
+
         currentSongSignature = signature;
 
         // Reset State & Clear UI IMMEDIATELY
@@ -107,13 +101,21 @@ function checkForSongChange() {
 
         updateStatus(`Detected: ${title}`);
 
-        fetchLyrics(title, artist, video.duration);
+        // Scrape Duration if possible (More reliable than video.duration in some cases)
+        let duration = video.duration;
+        const timeInfo = document.querySelector('.time-info.ytmusic-player-bar');
+        if (timeInfo) {
+            const parts = timeInfo.textContent.split('/');
+            if (parts.length > 1) {
+                duration = parseTime(parts[1].trim());
+            }
+        }
+
+        fetchLyrics(title, artist, duration);
     }
 }
 
-// ============================================================================
-//  3. LYRIC FETCHING
-// ============================================================================
+// 3. Lyric Fetching
 
 async function fetchLyrics(title, artist, duration) {
     updateStatus("Searching...");
@@ -126,7 +128,7 @@ async function fetchLyrics(title, artist, duration) {
         const url = new URL("https://lrclib.net/api/get");
         url.searchParams.append("track_name", title);
         url.searchParams.append("artist_name", cleanArtist);
-        if (useDuration) url.searchParams.append("duration", duration);
+        if (useDuration && duration && !isNaN(duration)) url.searchParams.append("duration", duration);
         return url;
     };
 
@@ -136,7 +138,7 @@ async function fetchLyrics(title, artist, duration) {
 
         // Attempt 2: Fallback to loose match (no duration)
         if (!response.ok) {
-            console.log("[YTM Lyrics] Exact match failed. Retrying without duration...");
+
             updateStatus("Retry w/o time...");
             response = await fetch(buildUrl(false));
         }
@@ -167,6 +169,39 @@ async function fetchLyrics(title, artist, duration) {
     }
 }
 
+function parseTime(timeStr) {
+    const parts = timeStr.split(':');
+    if (parts.length === 2) {
+        return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+    }
+    if (parts.length === 3) {
+        return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
+    }
+    return 0;
+}
+
+function getPlaybackTime() {
+    const video = document.querySelector('video');
+    if (!video) return 0;
+
+    // Default to video time
+    let time = video.currentTime;
+
+    // Check DOM for display time (Source of Truth for User)
+    const timeInfo = document.querySelector('.time-info.ytmusic-player-bar');
+    if (timeInfo) {
+        const parts = timeInfo.textContent.split('/');
+        if (parts.length > 0) {
+            const domTime = parseTime(parts[0].trim());
+            // If divergence is significant (> 2s), trust DOM
+            if (Math.abs(time - domTime) > 2) {
+                time = domTime;
+            }
+        }
+    }
+    return time;
+}
+
 function parseLRC(lrcString) {
     const lines = lrcString.split('\n');
     const result = [];
@@ -182,15 +217,12 @@ function parseLRC(lrcString) {
     return result;
 }
 
-// ============================================================================
-//  4. SYNC ENGINE
-// ============================================================================
+// 4. Sync Engine
 
 function syncLyrics() {
-    const video = document.querySelector('video');
-    if (!video || lyrics.length === 0) return;
+    if (lyrics.length === 0) return;
 
-    const currentTime = video.currentTime;
+    const currentTime = getPlaybackTime();
 
     // Find the current line
     let newIndex = -1;
@@ -239,9 +271,7 @@ function highlightLine(index) {
     }
 }
 
-// ============================================================================
-//  5. UI GENERATION (NATIVE STYLE)
-// ============================================================================
+// 5. UI Generation
 
 function createOverlay() {
     if (document.getElementById('ytm-lyrics-container')) return;
@@ -461,9 +491,7 @@ function applyStyles() {
     }
 }
 
-// ============================================================================
-//  6. DRAGGING & STORAGE
-// ============================================================================
+// 6. Dragging & Storage
 
 function setupDrag(element, handle) {
     let startX, startY;
