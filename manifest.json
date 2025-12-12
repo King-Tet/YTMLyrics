@@ -1,6 +1,11 @@
 {
   "manifest_version": 3,
   "name": "YouTube Music Lyrics",
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
   "version": "3.2",
   "permissions": [
     "scripting",
