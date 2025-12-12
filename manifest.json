@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "YTM Ultimate Lyrics",
+  "name": "YouTube Music Lyrics",
   "version": "2.4",
   "permissions": [
     "scripting",
@@ -15,7 +15,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "YTM Lyrics Settings"
+    "default_title": "YT Music Lyrics Settings"
   },
   "content_scripts": [
     {

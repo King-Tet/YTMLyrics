@@ -35,12 +35,16 @@ function init() {
         setInterval(checkForSongChange, 1000);
         setInterval(syncLyrics, 200);
 
-        // Watch for navigation (SPA) to ensure lyrics reset if needed
-        const observer = new MutationObserver(() => {
-            // Just a heartbeat check if the video element is replaced
-            const video = document.querySelector('video');
-            if (!video) return;
+        // Watch for navigation & title changes (SPA)
+        const observer = new MutationObserver((mutations) => {
+            // Trigger check if we suspect title/metadata changed
+            // This allows faster detection than the 1s interval
+            checkForSongChange();
         });
+
+        // Observe body is broad, but necessary due to dynamic YTM structure. 
+        // We can optimize if we know the specific container, but YTM changes classes often.
+        // Limiting to childList helps performance.
         observer.observe(document.body, { childList: true, subtree: true });
     });
 }
@@ -94,9 +98,13 @@ function checkForSongChange() {
         console.log(`[YTM Lyrics] New Song Detected: ${signature}`);
         currentSongSignature = signature;
 
-        // Reset State
+        // Reset State & Clear UI IMMEDIATELY
         lyrics = [];
         activeLineIndex = -1;
+
+        const list = document.getElementById('lyric-list');
+        if (list) list.innerHTML = '<div style="padding:20px; opacity:0.6;">Loading...</div>';
+
         updateStatus(`Detected: ${title}`);
 
         fetchLyrics(title, artist, video.duration);
@@ -113,17 +121,27 @@ async function fetchLyrics(title, artist, duration) {
     // Cleanup artist for better matching
     const cleanArtist = artist ? artist.split('•')[0].split('feat')[0].trim() : "";
 
-    const url = new URL("https://lrclib.net/api/get");
-    url.searchParams.append("track_name", title);
-    url.searchParams.append("artist_name", cleanArtist);
-    url.searchParams.append("duration", duration);
+    // Helper to build URL
+    const buildUrl = (useDuration) => {
+        const url = new URL("https://lrclib.net/api/get");
+        url.searchParams.append("track_name", title);
+        url.searchParams.append("artist_name", cleanArtist);
+        if (useDuration) url.searchParams.append("duration", duration);
+        return url;
+    };
 
     try {
-        const response = await fetch(url);
+        // Attempt 1: Strict match with duration
+        let response = await fetch(buildUrl(true));
+
+        // Attempt 2: Fallback to loose match (no duration)
+        if (!response.ok) {
+            console.log("[YTM Lyrics] Exact match failed. Retrying without duration...");
+            updateStatus("Retry w/o time...");
+            response = await fetch(buildUrl(false));
+        }
 
         if (!response.ok) {
-            // Attempt strict search if loose failed? 
-            // For now, just show not found
             updateStatus("Lyrics not found");
             renderMessage("No lyrics found for this song.");
             return;
@@ -291,9 +309,9 @@ function createOverlay() {
             </div>
 
             <div class="credits-box">
-                <div class="credits-title">YTM Ultimate Lyrics</div>
+                <div class="credits-title">YT Music Lyrics</div>
                 <div>v3.1</div>
-                <div style="margin-top:4px; opacity:0.7;">Made with ❤️</div>
+                <div style="margin-top:4px; opacity:0.7;">Made using LRCLIB API.</div>
             </div>
         </div>
     `;
