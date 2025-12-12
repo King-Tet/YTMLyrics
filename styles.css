@@ -1,196 +1,191 @@
 :root {
-    --lyric-bg: rgba(0, 0, 0, 0.85);
+    --lyric-bg: rgba(20, 20, 20, 0.95);
     --lyric-text: #ffffff;
-    --lyric-active: #3ea6ff;
+    --lyric-active: #ffffff;
+    --lyric-secondary: #aaaaaa;
     --lyric-font-size: 16px;
+    --brand-color: #3ea6ff;
 }
 
 #ytm-lyrics-container {
     position: fixed;
-    /* Default position, will be overridden by JS */
+    /* Default position */
     bottom: 120px;
     right: 20px;
-    width: 350px;
-    height: 400px;
+    width: 360px;
+    height: 500px;
 
     background: var(--lyric-bg);
     color: var(--lyric-text);
-    backdrop-filter: blur(10px);
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    /* Glassmorphism */
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+
     z-index: 9999;
+
     display: flex;
     flex-direction: column;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 
-    /* Native CSS Resizing */
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
     resize: both;
     overflow: hidden;
-    /* Hide overflow for the container, scroll the list instead */
-    min-width: 200px;
-    min-height: 150px;
+
+    min-width: 280px;
+    min-height: 200px;
+    max-width: 90vw;
+
+    transition: box-shadow 0.3s ease;
+    font-family: 'Roboto', 'Youtube Sans', sans-serif;
 }
 
-/* The Draggable Header */
+#ytm-lyrics-container:hover {
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Header */
 #ytm-header {
-    height: 30px;
-    background: rgba(255, 255, 255, 0.05);
+    height: 48px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     cursor: grab;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 10px;
+    padding: 0 16px;
     user-select: none;
     flex-shrink: 0;
 }
 
 #ytm-header:active {
     cursor: grabbing;
+    background: rgba(255, 255, 255, 0.06);
 }
 
 #ytm-title-label {
-    font-size: 12px;
-    font-weight: bold;
-    opacity: 0.7;
-}
-
-/* Settings Button (Cog) */
-#ytm-settings-btn {
-    cursor: pointer;
-    font-size: 0;
-    /* Remove potential text spacing */
-    opacity: 0.7;
-    transition: transform 0.3s;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--lyric-text);
     display: flex;
     align-items: center;
+    gap: 8px;
+    pointer-events: none;
 }
 
-#ytm-settings-btn:hover {
+.header-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.icon-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: transparent;
+    transition: background 0.2s;
+    color: #fff;
+    opacity: 0.7;
+}
+
+.icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
     opacity: 1;
-    transform: rotate(90deg);
 }
 
-/* Lyric List Area */
+.icon-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+/* Lyric List */
 #lyric-list {
     flex-grow: 1;
     overflow-y: auto;
-    padding: 10px 20px;
-    font-family: 'Roboto', sans-serif;
+    overflow-x: hidden;
+    padding: 16px 24px;
     font-size: var(--lyric-font-size);
+    /* Smooth scroll behavior */
+    scroll-behavior: smooth;
+    mask-image: linear-gradient(to bottom, transparent, black 10px, black 90%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 10px, black 90%, transparent);
 }
 
+/* Custom Scrollbar */
 #lyric-list::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
+}
+
+#lyric-list::-webkit-scrollbar-track {
+    background: transparent;
 }
 
 #lyric-list::-webkit-scrollbar-thumb {
-    background: #555;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+#lyric-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+/* Lyric Lines */
+.lyric-line {
+    padding: 10px 0;
+    color: var(--lyric-secondary);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    line-height: 1.5;
     border-radius: 4px;
 }
 
-/* Active Line */
-.lyric-line {
-    padding: 6px 0;
-    opacity: 0.5;
-    transition: all 0.2s ease;
-    cursor: pointer;
+.lyric-line:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.02);
 }
 
 .lyric-line.active {
-    opacity: 1;
-    font-weight: bold;
-    transform: scale(1.02);
-    transform-origin: left;
     color: var(--lyric-active);
+    font-weight: 700;
+    font-size: 1.1em;
+    transform-origin: left;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
 }
 
-/* Settings Panel (Overlay inside the box) */
-#ytm-settings-panel {
-    position: absolute;
-    top: 30px;
-    /* Below header */
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: #1a1a1a;
-    padding: 20px;
-    display: none;
-    /* Hidden by default */
-    flex-direction: column;
-    gap: 15px;
-    z-index: 10;
-}
-
-#ytm-settings-panel.show {
-    display: flex;
-}
-
-.setting-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 14px;
-}
-
-.setting-row input[type="color"] {
-    border: none;
-    width: 30px;
-    height: 30px;
-    cursor: pointer;
-    background: none;
-}
-
-.setting-row input[type="range"] {
-    width: 100px;
-}
-
-.save-btn {
-    margin-top: auto;
-    background: #3ea6ff;
-    border: none;
-    color: white;
-    padding: 8px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-}
-
-
-#lyric-list {
-    position: relative;
-    z-index: 1;
-}
-
-/* 2. VAGUE TIMESTAMPS */
+/* Timestamps */
 .lyric-time {
     display: inline-block;
-    width: 50px;
-    /* Fixed width to align lyrics perfectly */
-    font-size: 0.75em;
-    /* Slightly smaller than text */
-    color: #fff;
-    opacity: 0.2;
-    /* Very faint by default (the "vague" look) */
-    margin-right: 15px;
+    width: 45px;
+    font-size: 0.8em;
+    color: rgba(255, 255, 255, 0.3);
+    margin-right: 16px;
     text-align: right;
-    font-family: 'Courier New', monospace;
-    /* Monospace for alignment */
-    transition: all 0.3s ease;
+    font-family: 'Roboto Mono', monospace;
     user-select: none;
-    vertical-align: middle;
+    transition: opacity 0.2s;
 }
 
-/* Hovering over a line reveals its specific time a bit more */
 .lyric-line:hover .lyric-time {
-    opacity: 0.5;
+    opacity: 0.6;
 }
 
-/* The Active Line Timestamp - Clear and Visible */
 .lyric-line.active .lyric-time {
-    opacity: 0.9;
-    color: var(--lyric-active);
-    /* Matches your theme color */
-    font-weight: bold;
-    transform: scale(1.1);
-    /* Slight pop */
+    color: var(--brand-color);
+    opacity: 1;
+}
+
+/* Status Bar */
+#lyric-status {
+    font-size: 10px;
+    padding: 4px 16px;
+    color: rgba(255, 255, 255, 0.4);
+    text-align: right;
+    background: rgba(0, 0, 0, 0.2);
 }
