@@ -136,6 +136,12 @@
     background: rgba(255, 255, 255, 0.4);
 }
 
+/* Global Box Sizing for our Component */
+#ytm-lyrics-container,
+#ytm-lyrics-container * {
+    box-sizing: border-box;
+}
+
 /* Lyric Lines */
 .lyric-line {
     padding: 10px 0;
@@ -194,10 +200,10 @@
 #ytm-settings-overlay {
     position: absolute;
     top: 48px;
-    /* Below header */
     left: 0;
     right: 0;
     bottom: 0;
+
     background: rgba(20, 20, 20, 0.98);
     backdrop-filter: blur(20px);
     z-index: 100;
@@ -205,13 +211,21 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
+    box-sizing: border-box;
 
+    /* Animation State: Hidden */
     transform: translateY(100%);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    visibility: hidden;
+    /* Delay visibility hide until transform finishes */
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s 0.3s;
 }
 
 #ytm-settings-overlay.visible {
+    /* Animation State: Visible */
     transform: translateY(0);
+    visibility: visible;
+    /* Immediate visibility */
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s;
 }
 
 .settings-group {
